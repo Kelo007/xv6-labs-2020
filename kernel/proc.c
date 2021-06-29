@@ -694,3 +694,18 @@ procdump(void)
     printf("\n");
   }
 }
+
+uint64
+proccount(void) {
+  struct proc *p;
+  uint64 result = NPROC;
+
+  for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&p->lock);
+    if(p->state == UNUSED) {
+      --result;
+    }
+    release(&p->lock);
+  }
+  return result;
+}
