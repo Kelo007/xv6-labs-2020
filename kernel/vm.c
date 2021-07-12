@@ -343,6 +343,26 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   return -1;
 }
 
+// copy from user pagetable to user kernel pagetable
+void
+u2kvmcopy(pagetable_t user, pagetable_t kernel, uint64 usersz, uint64 kernelsz, int dofree)
+{
+  pte_t *pte_from, *pte_to;
+  uint64 i;
+  if (dofree > 0 && kernelsz > 0) {
+    uvmunmap(kernel, 0, PGROUNDUP(kernelsz) / PGSIZE, 0);
+  }
+  for (i = dofree ? 0 : PGROUNDDOWN(kernelsz); i < usersz; i += PGSIZE) {
+    if((pte_from = walk(user, i, 0)) == 0)
+      panic("u2kvmcopy: pte should exist");
+    if((*pte_from & PTE_V) == 0)
+      panic("u2kvmcopy: page not present");
+    if((pte_to = walk(kernel, i, 1)) == 0)
+      panic("u2kvmcopy: pte should exist");
+    *pte_to = (*pte_from) & (~PTE_U);
+  }
+}
+
 // mark a PTE invalid for user access.
 // used by exec for the user stack guard page.
 void
@@ -387,6 +407,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
+  return copyin_new(pagetable, dst, srcva, len);
   uint64 n, va0, pa0;
 
   while(len > 0){
@@ -413,6 +434,7 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 int
 copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 {
+  return copyinstr_new(pagetable, dst, srcva, max);
   uint64 n, va0, pa0;
   int got_null = 0;
 

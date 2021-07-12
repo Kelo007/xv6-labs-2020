@@ -43,12 +43,18 @@ sys_sbrk(void)
 {
   int addr;
   int n;
+  struct proc* p;
 
   if(argint(0, &n) < 0)
     return -1;
-  addr = myproc()->sz;
+
+  p = myproc();
+  addr = p->sz;
+  if (addr + n >= PLIC) return -1;
   if(growproc(n) < 0)
     return -1;
+  if (n > 0) u2kvmcopy(p->pagetable, p->kernel_pagetable, addr + n, addr, 0);
+  else u2kvmcopy(p->pagetable, p->kernel_pagetable, addr + n, addr, 1);
   return addr;
 }
 

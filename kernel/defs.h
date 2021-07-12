@@ -159,6 +159,10 @@ void            uartputc(int);
 void            uartputc_sync(int);
 int             uartgetc(void);
 
+// vmcopin.c
+int             copyin_new(pagetable_t, char*, uint64, uint64);
+int             copyinstr_new(pagetable_t, char*, uint64, uint64);
+
 // vm.c
 void            kvminit(void);
 void            kvminithart(void);
@@ -173,6 +177,7 @@ uint64          uvmdealloc(pagetable_t, uint64, uint64);
 #ifdef SOL_COW
 #else
 int             uvmcopy(pagetable_t, pagetable_t, uint64);
+void            u2kvmcopy(pagetable_t, pagetable_t, uint64, uint64, int);
 #endif
 void            uvmfree(pagetable_t, uint64);
 void            uvmunmap(pagetable_t, uint64, uint64, int);

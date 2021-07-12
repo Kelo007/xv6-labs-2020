@@ -219,6 +219,7 @@ proc_kpagetable(struct proc *p)
   ukvmmap(pagetable, KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
   ukvmmap(pagetable, (uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
   ukvmmap(pagetable, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+  //ukvmmap(pagetable, TRAPFRAME, (uint64)(p->trapframe), PGSIZE, PTE_R | PTE_W);
 
   return pagetable;
 }
@@ -274,6 +275,7 @@ userinit(void)
   // and data into it.
   uvminit(p->pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
+  u2kvmcopy(p->pagetable, p->kernel_pagetable, p->sz, 0, 0);
 
   // prepare for the very first "return" from kernel to user.
   p->trapframe->epc = 0;      // user program counter
@@ -327,6 +329,7 @@ fork(void)
     release(&np->lock);
     return -1;
   }
+  u2kvmcopy(np->pagetable, np->kernel_pagetable, p->sz, 0, 0);
   np->sz = p->sz;
 
   np->parent = p;

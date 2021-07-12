@@ -56,6 +56,8 @@ exec(char *path, char **argv)
       goto bad;
     if(loadseg(pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0)
       goto bad;
+    if (sz1 >= PLIC)
+      goto bad;
   }
   iunlockput(ip);
   end_op();
@@ -96,6 +98,9 @@ exec(char *path, char **argv)
     goto bad;
   if(copyout(pagetable, sp, (char *)ustack, (argc+1)*sizeof(uint64)) < 0)
     goto bad;
+
+  uvmunmap(p->kernel_pagetable, 0, PGROUNDUP(oldsz) / PGSIZE, 0);
+  u2kvmcopy(pagetable, p->kernel_pagetable, sz, 0, 0);
 
   // arguments to user main(argc, argv)
   // argc is returned via the system call return
