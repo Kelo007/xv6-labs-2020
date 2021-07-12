@@ -5,6 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "proc.h"
 
 /*
  * the kernel's page table.
@@ -120,6 +122,12 @@ kvmmap(uint64 va, uint64 pa, uint64 sz, int perm)
   if(mappages(kernel_pagetable, va, sz, pa, perm) != 0)
     panic("kvmmap");
 }
+void
+ukvmmap(pagetable_t pagetable, uint64 va, uint64 pa, uint64 sz, int perm)
+{
+  if(mappages(pagetable, va, sz, pa, perm) != 0)
+    panic("ukvmmap");
+}
 
 // translate a kernel virtual address to
 // a physical address. only needed for
@@ -132,7 +140,7 @@ kvmpa(uint64 va)
   pte_t *pte;
   uint64 pa;
   
-  pte = walk(kernel_pagetable, va, 0);
+  pte = walk(myproc()->kernel_pagetable, va, 0);
   if(pte == 0)
     panic("kvmpa");
   if((*pte & PTE_V) == 0)
@@ -439,4 +447,25 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+void rec_vmprint(pagetable_t pagetable, int level) {
+	for (int i = 0; i < 512; i++) {
+		pte_t pte = pagetable[i];
+		if (pte & PTE_V) {
+			uint64 child = PTE2PA(pte);
+			for (int j = 0; j < level; j++) {
+				printf(" ..");
+			}
+			printf("%d: pte %p pa %p\n", i, pte, child);
+			if ((pte & (PTE_R|PTE_W|PTE_X)) == 0) {
+				rec_vmprint((pagetable_t)child, level+1);
+			} 
+		}
+	}
+}
+
+void vmprint(pagetable_t pagetable) {
+	printf("page table %p\n", pagetable);
+	rec_vmprint(pagetable, 1);
 }
