@@ -147,6 +147,13 @@ freeproc(struct proc *p)
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
+  if(p->kstack)
+  {
+    pte_t* pte = walk(p->kernel_pagetable, p->kstack, 0);
+    if (pte == 0)
+      panic("freeproc: walk");
+    kfree((void*)PTE2PA(*pte));
+  }
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   if(p->kernel_pagetable)
@@ -212,7 +219,6 @@ proc_kpagetable(struct proc *p)
   ukvmmap(pagetable, KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
   ukvmmap(pagetable, (uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
   ukvmmap(pagetable, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
-  ukvmmap(pagetable, TRAPFRAME, (uint64)(p->trapframe), PGSIZE, PTE_R | PTE_W);
 
   return pagetable;
 }
@@ -524,6 +530,7 @@ scheduler(void)
         w_satp(MAKE_SATP(p->kernel_pagetable));
         sfence_vma();
         swtch(&c->context, &p->context);
+        kvminithart();
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
@@ -535,7 +542,6 @@ scheduler(void)
     }
 #if !defined (LAB_FS)
     if(found == 0) {
-      kvminithart();
       intr_on();
       asm volatile("wfi");
     }
