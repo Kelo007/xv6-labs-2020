@@ -76,6 +76,15 @@ usertrap(void)
   if(p->killed)
     exit(-1);
 
+  if (which_dev == 2 && (p->alarm.ticks != 0 || p->alarm.handler != 0) && p->alarm.count != -1) {
+    p->alarm.count++;
+    if (p->alarm.count >= p->alarm.ticks) {
+      p->alarm.count = -1;
+      p->alarm.trapframe = *p->trapframe;
+      p->trapframe->epc = p->alarm.handler;
+    }
+  }
+
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
     yield();

@@ -1,0 +1,6 @@
+1. a registers, a3 register
+2. li	a1,12
+3. 638
+4. 38
+5. reverse i, do not need to change 57616
+6. depends on the value of register
