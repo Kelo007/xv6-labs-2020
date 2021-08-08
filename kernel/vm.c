@@ -5,6 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "proc.h"
 
 /*
  * the kernel's page table.
@@ -100,11 +102,16 @@ walkaddr(pagetable_t pagetable, uint64 va)
   if(va >= MAXVA)
     return 0;
 
+  struct proc *p = myproc();
   pte = walk(pagetable, va, 0);
-  if(pte == 0)
-    return 0;
-  if((*pte & PTE_V) == 0)
-    return 0;
+  if(pte == 0 || (*pte & PTE_V) == 0)
+  {
+    if (va >= p->sz || va < PGROUNDUP(p->trapframe->sp))
+      return 0;
+    if ((lazyalloc(pagetable, va)) < 0)
+      return 0;
+    pte = walk(pagetable, va, 0);
+  }
   if((*pte & PTE_U) == 0)
     return 0;
   pa = PTE2PA(*pte);
@@ -181,9 +188,10 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
     if((pte = walk(pagetable, a, 0)) == 0)
-      panic("uvmunmap: walk");
-    if((*pte & PTE_V) == 0)
-      panic("uvmunmap: not mapped");
+      continue;
+    if((*pte & PTE_V) == 0) {
+      continue;
+    }
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
     if(do_free){
@@ -315,9 +323,9 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
-      panic("uvmcopy: pte should exist");
+      continue;
     if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
+      continue;
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0)
@@ -439,4 +447,37 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+// lazy allocation
+int lazyalloc(pagetable_t pagetable, uint64 va) {
+  if (va % PGSIZE != 0)
+    panic("lazyalloc(): not aligned");
+
+  pte_t *pte = walk(pagetable, va, 1);
+  char *mem = (char *) PTE2PA(*pte);
+  if (*pte & PTE_V) {
+    return 0;
+  }
+  if (*pte == 0) {
+    mem = kalloc();
+    if (mem == 0) {
+      return -1;
+    }
+    *pte = PA2PTE(mem);
+  }
+  memset(mem, 0, PGSIZE);
+  *pte |= PTE_U|PTE_W|PTE_R|PTE_V;
+  return 0;
+}
+
+void lazyclear(pagetable_t pagetable, uint64 va) {
+  if (va % PGSIZE != 0)
+    panic("lazyclear(): not aligned");
+
+  pte_t *pte;
+  
+  pte = walk(pagetable, va, 0);
+  if (pte != 0)
+    *pte &= ~PTE_V;
 }
