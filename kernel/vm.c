@@ -335,6 +335,68 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   return -1;
 }
 
+int cowcopy(pagetable_t old, pagetable_t new, uint64 sz) {
+  pte_t *oldpte, *newpte;
+  uint64 va = 0;
+  for (; va < sz; va += PGSIZE) {
+    oldpte = walk(old, va, 0);
+    if (oldpte == 0 || (*oldpte & PTE_V) == 0)
+      panic("cowcopy(): page not present");
+    newpte = walk(new, va, 1);
+    
+    int *rc = acquirerc(PTE2PA(*oldpte));
+    *rc += 1;
+    *oldpte |= PTE_C;
+    *oldpte &= ~PTE_W;
+    *newpte = *oldpte;
+    releaserc();
+  }
+  return 0;
+}
+
+int cowalloc(pagetable_t pagetable, uint64 va) {
+  pte_t *pte;
+  uint64 pa;
+  pte = walk(pagetable, va, 0);
+  pa = PTE2PA(*pte);
+  int *rc = acquirerc(pa);
+  if (*rc == 1) {
+    *pte |= PTE_W;
+    *pte &= ~PTE_C;
+    releaserc();
+    return 0;
+  }
+  char *mem = kalloc();
+  if (mem == 0) {
+    releaserc();
+    return -1;
+  }
+  memmove(mem, (char *) pa, PGSIZE);
+  *rc -= 1;
+
+  *pte = PA2PTE(mem) | PTE_FLAGS(*pte);
+  *pte |= PTE_W;
+  *pte &= ~PTE_C;
+  releaserc();
+
+  return 0;
+}
+
+int iscowfault(pagetable_t pagetable, uint64 va) {
+  if(va >= MAXVA)
+    return 0;
+
+  pte_t *pte;
+  pte = walk(pagetable, va, 0);
+  if (pte == 0)
+    return 0;
+  if((*pte & PTE_V) == 0)
+    return 0;
+  if((*pte & PTE_U) == 0)
+    return 0;
+  return (*pte & PTE_C) > 0;
+}
+
 // mark a PTE invalid for user access.
 // used by exec for the user stack guard page.
 void
@@ -358,6 +420,8 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+    if (iscowfault(pagetable, va0))
+      cowalloc(pagetable, va0);
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
