@@ -283,6 +283,24 @@ create(char *path, short type, short major, short minor)
   return ip;
 }
 
+// hold lock before calling
+// will hold lock before return
+struct inode * getrealip(struct inode *ip) {
+  char target[MAXPATH];
+  int maxtimes = 10;
+  while (ip->type == T_SYMLINK && maxtimes--) {
+    memmove(target, (void *) ip->addrs, sizeof(ip->addrs));
+    iunlockput(ip);
+    if ((ip = namei(target)) == 0)
+      return 0; 
+    ilock(ip);
+  }
+  if (ip->type != T_SYMLINK)
+    return ip;
+  // iunlockput(ip);
+  return 0;
+}
+
 uint64
 sys_open(void)
 {
@@ -315,6 +333,12 @@ sys_open(void)
       return -1;
     }
   }
+
+  if (ip->type == T_SYMLINK && (omode & O_NOFOLLOW) == 0)
+    if ((ip = getrealip(ip)) == 0) {
+      end_op();
+      return -1;
+    }
 
   if(ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)){
     iunlockput(ip);
@@ -482,5 +506,55 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
+  return 0;
+}
+
+uint64
+sys_symlink(void) {
+  char name[DIRSIZ], target[MAXPATH], path[MAXPATH];
+  struct inode *dp, *ip;
+
+  if(argstr(0, target, MAXPATH) < 0 || argstr(1, path, MAXPATH) < 0)
+    return -1;
+
+  begin_op();
+  if((dp = nameiparent(path, name)) == 0)
+    return 0;
+
+  ilock(dp);
+
+  if((ip = dirlookup(dp, name, 0)) != 0){
+    iput(ip);
+    iunlockput(dp);
+    end_op();
+    printf("symlink: existed\n");
+    return -1;
+  }
+
+  if((ip = ialloc(dp->dev, T_SYMLINK)) == 0){
+    iunlock(dp);
+    end_op();
+    printf("symlink: alloc failed\n");
+    return -1;
+  }
+  
+  ilock(ip);
+  ip->major = 0;
+  ip->minor = 0;
+  ip->nlink = 1;
+  memmove((void *) ip->addrs, target, sizeof(ip->addrs));
+  iupdate(ip);
+  iunlock(ip);
+
+  if(dirlink(dp, name, ip->inum) < 0){
+    iput(ip);
+    iunlockput(dp);
+    end_op();
+    return -1;
+  }
+  iput(ip);
+  iunlockput(dp);
+  end_op();
+
   return 0;
 }
