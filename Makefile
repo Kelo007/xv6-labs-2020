@@ -19,6 +19,7 @@ OBJS = \
   $K/string.o \
   $K/main.o \
   $K/vm.o \
+	$K/vma.o \
   $K/proc.o \
   $K/swtch.o \
   $K/trampoline.o \
@@ -175,6 +176,7 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
+	$U/_mmaptest\
 
 
 

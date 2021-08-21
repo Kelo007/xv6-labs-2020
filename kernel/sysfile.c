@@ -484,3 +484,45 @@ sys_pipe(void)
   }
   return 0;
 }
+
+uint64
+sys_mmap(void) {
+  struct VMA vma;
+
+#define argread(pos, var) \
+  if (argint((pos), &(var)) < 0) \
+    return -1
+  
+  argread(1, vma.length);
+  argread(2, vma.prot);
+  argread(3, vma.flags);
+  argread(5, vma.offset);
+
+#undef argread
+
+  if (argaddr(0, &vma.addr) < 0)
+    return -1;
+  if (argfd(4, 0, &vma.f) < 0)
+    return -1;
+
+  if (vinstall(&vma) < 0)
+    return -1;
+
+  return vma.addr;
+}
+
+uint64
+sys_munmap(void) {
+  uint64 addr;
+  int length;
+
+  if (argaddr(0, &addr) < 0)
+    return -1;
+  if (argint(1, &length) < 0)
+    return -1;
+
+  if (vuninstall(addr, length) < 0)
+    return -1;
+
+  return 0;
+}

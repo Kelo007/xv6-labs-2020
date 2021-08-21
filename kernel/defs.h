@@ -8,6 +8,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct VMA;
 
 // bio.c
 void            binit(void);
@@ -155,6 +156,7 @@ void            uartputc_sync(int);
 int             uartgetc(void);
 
 // vm.c
+pte_t *         walk(pagetable_t, uint64, int);
 void            kvminit(void);
 void            kvminithart(void);
 void            kvmmap(pagetable_t, uint64, uint64, uint64, int);
@@ -185,3 +187,8 @@ void            virtio_disk_intr(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+
+// vma.c
+int vinstall(struct VMA*);
+int vuninstall(uint64, int);
+int vfault(pagetable_t, uint64);

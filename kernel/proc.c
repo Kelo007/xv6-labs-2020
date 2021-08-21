@@ -302,6 +302,12 @@ fork(void)
 
   np->state = RUNNABLE;
 
+  for (int i = 0; i < NVMA; ++i) {
+    np->vma[i] = p->vma[i];
+    if (p->vma[i].length > 0)
+      np->vma[i].f = filedup(p->vma[i].f);
+  }
+
   release(&np->lock);
 
   return pid;
