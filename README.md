@@ -9,4 +9,4 @@
 - [x] [Lab lock: Parallelism/locking](https://github.com/Kelo007/xv6-labs-2020/tree/lock)
 - [x] [Lab fs: File system](https://github.com/Kelo007/xv6-labs-2020/tree/fs)
 - [x] [Lab mmap: Mmap](https://github.com/Kelo007/xv6-labs-2020/tree/mmap)
-- [ ] [Lab net: Network stack](https://github.com/Kelo007/xv6-labs-2020/tree/net)
+- [x] [Lab net: Network stack](https://github.com/Kelo007/xv6-labs-2020/tree/net)
